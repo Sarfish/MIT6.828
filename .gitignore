@@ -16,3 +16,6 @@
 /sol?/
 /myapi.key
 /.suf
+
+# 个人配置
+/sar-*
