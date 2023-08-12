@@ -58,7 +58,34 @@ int
 mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 {
 	// Your code here.
-	return 0;
+
+	/**************************
+	 * +------------------------+
+	 * |       ....             |
+	 * +------------------------+  || 栈增长方向
+	 * |       args 2           |  \/
+	 * +------------------------+
+	 * |       args 1           |
+	 * +------------------------+
+	 * |         cs:ip          | <---- ret指令将弹出该值 
+	 * +------------------------+
+	 * |   last frame base      | <---- ebp （当前栈帧基地址）
+	 * +------------------------+
+	*/
+	cprintf("Stack backtrace:\n");
+	//ebp寄存器中保存着当前栈帧的基地址
+	uintptr_t cur_frame_base = read_ebp();
+
+	while(cur_frame_base != 0){ //系统初始化基栈帧为0
+		int* stack_data = (int*)cur_frame_base;
+		cprintf("  ebp %08x  eip %08x  args", stack_data, *(stack_data + 1));
+		int * p_args = stack_data + 2;
+		for(int i = 0; i < 5; i++) cprintf(" %08x", p_args[i]);
+		cprintf("\n");
+		cur_frame_base = *stack_data;
+	}
+
+  return 0;
 }
 
 
