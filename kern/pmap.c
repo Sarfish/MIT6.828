@@ -102,8 +102,10 @@ boot_alloc(uint32_t n)
 	// to a multiple of PGSIZE.
 	//
 	// LAB 2: Your code here.
-
-	return NULL;
+	if(n < 0)return NULL;
+	char* mem_begin = nextfree;
+	nextfree += ROUNDUP(n, PGSIZE);
+	return mem_begin;
 }
 
 // Set up a two-level page table:
@@ -125,7 +127,7 @@ mem_init(void)
 	i386_detect_memory();
 
 	// Remove this line when you're ready to test this function.
-	panic("mem_init: This function is not finished\n");
+	//panic("mem_init: This function is not finished\n");
 
 	//////////////////////////////////////////////////////////////////////
 	// create initial page directory.
@@ -148,7 +150,8 @@ mem_init(void)
 	// array.  'npages' is the number of physical pages in memory.  Use memset
 	// to initialize all fields of each struct PageInfo to 0.
 	// Your code goes here:
-
+	pages = boot_alloc(npages * sizeof(struct PageInfo));
+	memset(pages, 0, npages * sizeof(struct PageInfo));
 
 	//////////////////////////////////////////////////////////////////////
 	// Now that we've allocated the initial kernel data structures, we set
@@ -251,11 +254,43 @@ page_init(void)
 	// Change the code to reflect this.
 	// NB: DO NOT actually touch the physical memory corresponding to
 	// free pages!
+	pages[0].pp_ref = 1;
+	pages[0].pp_link = NULL;
+
 	size_t i;
-	for (i = 0; i < npages; i++) {
+	for (i = 1; i < npages_basemem; i++) {
 		pages[i].pp_ref = 0;
 		pages[i].pp_link = page_free_list;
 		page_free_list = &pages[i];
+	}
+	const size_t npages_iophy = IOPHYSMEM/PGSIZE, npages_ext = EXTPHYSMEM/PGSIZE;
+	for(i = npages_iophy; i < npages_ext; i++){
+		pages[i].pp_ref = 1;
+		pages[i].pp_link = NULL;
+	}
+
+	//从内核到boot_alloc分配结束的页已在使用中
+	size_t endofuse = ((size_t)ROUNDUP(PADDR(boot_alloc(0)), PGSIZE))/PGSIZE;
+	
+	for(; i<endofuse; i++){
+		pages[i].pp_ref = 1;
+		pages[i].pp_link = NULL;
+	}
+	//注意：这里对挂载的顺序进行调整，使得内核初始化时
+	//使用的0~4M的页面中的空闲页优先被调用，使得内核可以访问页表
+	//在该实验的测试函数中隐含地实现了这一点
+	//因此，如果不在这里进行调整，删除测试函数后会引起异常，因为内核
+	//在建立内存映射前，无法访问由分配器随机分配的物理页
+	for(i = 1024; i<npages; i++){
+		pages[i].pp_ref = 0;
+		pages[i].pp_link = page_free_list;
+		page_free_list = &pages[i];
+	}
+	for(i = endofuse; i< 1024 ; i++){
+		pages[i].pp_ref = 0;
+		pages[i].pp_link = page_free_list;
+		page_free_list = &pages[i];
+		//cprintf("add page 0x%0x on free list\n", page2pa(page_free_list));
 	}
 }
 
@@ -275,7 +310,18 @@ struct PageInfo *
 page_alloc(int alloc_flags)
 {
 	// Fill this function in
-	return 0;
+	if(page_free_list == NULL)return NULL;
+
+	struct PageInfo * free_page;
+	free_page = page_free_list;
+	page_free_list = page_free_list->pp_link;
+	free_page->pp_link = NULL;
+
+	if(alloc_flags & ALLOC_ZERO){
+		void* page_kva = (void*)page2kva(free_page);
+		memset(page_kva, 0, PGSIZE);
+	}
+	return free_page;
 }
 
 //
@@ -288,6 +334,8 @@ page_free(struct PageInfo *pp)
 	// Fill this function in
 	// Hint: You may want to panic if pp->pp_ref is nonzero or
 	// pp->pp_link is not NULL.
+	pp->pp_link = page_free_list;
+	page_free_list = pp;
 }
 
 //
