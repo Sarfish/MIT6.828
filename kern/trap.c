@@ -190,6 +190,23 @@ trap_dispatch(struct Trapframe *tf)
 	if(tf->tf_trapno == T_BRKPT){
 		monitor(tf);
 	}
+	if(tf->tf_trapno == T_SYSCALL){
+		//调用syscall
+		//用户接口的syscall将参数保存在寄存器中
+		//然后调用了中断，于是寄存器值可以在trapframe中找到
+		int32_t syscall_ret = 0;
+		syscall_ret = syscall(
+			tf->tf_regs.reg_eax,
+			tf->tf_regs.reg_edx,
+			tf->tf_regs.reg_ecx,
+			tf->tf_regs.reg_ebx,
+			tf->tf_regs.reg_edi,
+			tf->tf_regs.reg_esi
+		);
+		//修改中断帧中的eax实现系统调用中断返回
+		tf->tf_regs.reg_eax = syscall_ret;
+		return;
+	}
 	// Unexpected trap: The user process or the kernel has a bug.
 	print_trapframe(tf);
 	if (tf->tf_cs == GD_KT)
