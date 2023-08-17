@@ -78,10 +78,19 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 
 	while(cur_frame_base != 0){ //系统初始化基栈帧为0
 		int* stack_data = (int*)cur_frame_base;
-		cprintf("  ebp %08x  eip %08x  args", stack_data, *(stack_data + 1));
+		int eip_val = *(stack_data + 1);
+		cprintf("  ebp %08x  eip %08x  args", stack_data, eip_val);
 		int * p_args = stack_data + 2;
 		for(int i = 0; i < 5; i++) cprintf(" %08x", p_args[i]);
 		cprintf("\n");
+
+		//输出调试信息
+		struct Eipdebuginfo dbg_inf;
+		if(!debuginfo_eip(eip_val, &dbg_inf)){
+			cprintf("         %s:%d: %.*s+%d\n", dbg_inf.eip_file, dbg_inf.eip_line,
+				dbg_inf.eip_fn_namelen, dbg_inf.eip_fn_name, eip_val - dbg_inf.eip_fn_addr);
+		}
+
 		cur_frame_base = *stack_data;
 	}
 
