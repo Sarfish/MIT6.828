@@ -19,3 +19,5 @@
 
 # 个人配置
 /sar-*
+.vscode
+__pycache__
