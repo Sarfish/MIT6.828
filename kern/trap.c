@@ -65,7 +65,47 @@ trap_init(void)
 	extern struct Segdesc gdt[];
 
 	// LAB 3: Your code here.
+	// 声明定义在kern/trapentry.S中的trap handle
+	void traph_divide();
+	void traph_debug();
+	void traph_nmi();
+	void traph_brkpt();
+	void traph_oflow();
+	void traph_bound();
+	void traph_illop();
+	void traph_device();
+	void traph_dblflt();
+	void traph_tss();
+	void traph_segnp();
+	void traph_stack();
+	void traph_gpflt();
+	void traph_pgflt();
+	void traph_fperr();
+	void traph_align();
+	void traph_mchk();
+	void traph_simderr();
+	void traph_syscall();
 
+	//初始化IDT
+	SETGATE(idt[T_DIVIDE],  1, GD_KT, traph_divide,  0);
+	SETGATE(idt[T_DEBUG],   1, GD_KT, traph_debug,   0);
+	SETGATE(idt[T_NMI],     1, GD_KT, traph_nmi,     0);
+	SETGATE(idt[T_BRKPT],   1, GD_KT, traph_brkpt,   3);
+	SETGATE(idt[T_OFLOW],   1, GD_KT, traph_oflow,   0);
+	SETGATE(idt[T_BOUND],   1, GD_KT, traph_bound,   0);
+	SETGATE(idt[T_ILLOP],   1, GD_KT, traph_illop,   0);
+	SETGATE(idt[T_DEVICE],  1, GD_KT, traph_device,  0);
+	SETGATE(idt[T_DBLFLT],  1, GD_KT, traph_dblflt,  0);
+	SETGATE(idt[T_TSS],     1, GD_KT, traph_tss,     0);
+	SETGATE(idt[T_SEGNP],   1, GD_KT, traph_segnp,   0);
+	SETGATE(idt[T_STACK],   1, GD_KT, traph_stack,   0);
+	SETGATE(idt[T_GPFLT],   1, GD_KT, traph_gpflt,   0);
+	SETGATE(idt[T_PGFLT],   1, GD_KT, traph_pgflt,   0);
+	SETGATE(idt[T_FPERR],   1, GD_KT, traph_fperr,   0);
+	SETGATE(idt[T_ALIGN],   1, GD_KT, traph_align,   0);
+	SETGATE(idt[T_MCHK],    1, GD_KT, traph_mchk,    0);
+	SETGATE(idt[T_SIMDERR], 1, GD_KT, traph_simderr, 0);
+	SETGATE(idt[T_SYSCALL], 1, GD_KT, traph_syscall, 3);
 	// Per-CPU setup 
 	trap_init_percpu();
 }
