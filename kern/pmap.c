@@ -578,7 +578,28 @@ int
 user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 {
 	// LAB 3: Your code here.
+	intptr_t start = (intptr_t)ROUNDDOWN(va, PGSIZE);
+	intptr_t end   = (intptr_t)ROUNDUP(va + len, PGSIZE);
+	bool aligned = 0;
+	for(; start < end; start += PGSIZE){
+		// cprintf("checking va 0x%08x\n", start);
+		if(start >= ULIM){
+			user_mem_check_addr = aligned ? start : (int32_t)va;
+			return -E_FAULT;
+		}
+		pte_t * pte_store = NULL;
+		page_lookup(env->env_pgdir, (void*)start, &pte_store);
 
+		// cprintf("perm = 0x%08x\nneed = 0x%08x\n", *pte_store, perm|PTE_P);
+		if((*pte_store & (perm | PTE_P)) == (perm | PTE_P)){
+			aligned = 1;	
+			continue;
+		}
+		else{
+			user_mem_check_addr = aligned ? start : (int32_t)va;
+			return -E_FAULT;
+		}
+	}	
 	return 0;
 }
 
