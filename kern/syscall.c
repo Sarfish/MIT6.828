@@ -84,7 +84,14 @@ sys_exofork(void)
 	// will appear to return 0.
 
 	// LAB 4: Your code here.
-	panic("sys_exofork not implemented");
+	//panic("sys_exofork not implemented");
+	struct Env * new_subenv = NULL;
+	int error_code = env_alloc(&new_subenv, curenv->env_id);
+	if(error_code < 0)return error_code;
+	new_subenv->env_status = ENV_NOT_RUNNABLE;
+	new_subenv->env_tf = curenv->env_tf;
+	new_subenv->env_tf.tf_regs.reg_eax = 0;
+	return new_subenv->env_id;
 }
 
 // Set envid's env_status to status, which must be ENV_RUNNABLE
@@ -104,7 +111,12 @@ sys_env_set_status(envid_t envid, int status)
 	// envid's status.
 
 	// LAB 4: Your code here.
-	panic("sys_env_set_status not implemented");
+	//panic("sys_env_set_status not implemented");
+	struct Env * targ_env;
+	int errcode = envid2env(envid, &targ_env, true);
+	if(errcode != 0)return -E_INVAL;
+	targ_env->env_status = status;
+	return 0;
 }
 
 // Set the page fault upcall for 'envid' by modifying the corresponding struct
@@ -120,6 +132,7 @@ sys_env_set_pgfault_upcall(envid_t envid, void *func)
 {
 	// LAB 4: Your code here.
 	panic("sys_env_set_pgfault_upcall not implemented");
+
 }
 
 // Allocate a page of memory and map it at 'va' with permission
@@ -149,7 +162,24 @@ sys_page_alloc(envid_t envid, void *va, int perm)
 	//   allocated!
 
 	// LAB 4: Your code here.
-	panic("sys_page_alloc not implemented");
+	// panic("sys_page_alloc not implemented");
+	
+	struct Env* penv = NULL;
+	int errc = envid2env(envid, &penv, false);
+	if(errc != 0)return errc;
+
+	struct PageInfo * p_newphypg = page_alloc(ALLOC_ZERO);
+	if(NULL == p_newphypg){
+		return -E_NO_MEM;
+	}
+
+	errc = page_insert(penv->env_pgdir, p_newphypg, va, perm);
+	if(errc != 0){
+		page_free(p_newphypg);
+		return -E_NO_MEM;
+	}
+	return 0;
+	
 }
 
 // Map the page of memory at 'srcva' in srcenvid's address space
@@ -180,7 +210,35 @@ sys_page_map(envid_t srcenvid, void *srcva,
 	//   check the current permissions on the page.
 
 	// LAB 4: Your code here.
-	panic("sys_page_map not implemented");
+	// panic("sys_page_map not implemented");
+
+	int errc;
+	struct Env *penv_s = NULL, *penv_d = NULL;
+	errc = envid2env(srcenvid, &penv_s, true);
+	if(-E_BAD_ENV == errc){
+		return -E_BAD_ENV;
+	}
+	errc = envid2env(dstenvid, &penv_d, true);
+	if(-E_BAD_ENV == errc){
+		return -E_BAD_ENV;
+	}
+	
+	if((physaddr_t)(srcva) >= UTOP || PGOFF(srcva) ||
+	   (physaddr_t)(dstva) >= UTOP || PGOFF(dstva))return -E_INVAL;
+	if ( (perm & PTE_U) == 0 || (perm & PTE_P) == 0 || (perm & ~PTE_SYSCALL))
+		return -E_INVAL;
+	pte_t *pte = NULL;
+	struct PageInfo * spage = page_lookup(penv_s->env_pgdir, srcva, &pte);
+	
+	if(NULL == spage){return -E_INVAL;}
+	if(0 == ((*pte) & perm)){return -E_INVAL;}
+	
+	if((perm & PTE_W) && !((*pte)&PTE_W))return -E_INVAL;
+
+	errc = page_insert(penv_d->env_pgdir, spage, dstva, perm);
+	if(-E_NO_MEM == errc)return -E_NO_MEM;
+
+	return 0;
 }
 
 // Unmap the page of memory at 'va' in the address space of 'envid'.
@@ -196,7 +254,15 @@ sys_page_unmap(envid_t envid, void *va)
 	// Hint: This function is a wrapper around page_remove().
 
 	// LAB 4: Your code here.
-	panic("sys_page_unmap not implemented");
+	// panic("sys_page_unmap not implemented");
+	int errc;
+	struct Env *penv = NULL;
+	errc = envid2env(envid, &penv, true);
+	if(errc)return errc;
+
+	if((uint32_t)va >= UTOP || PGOFF((uint32_t)va))return -E_INVAL;
+	page_remove(penv->env_pgdir, va);
+	return 0;
 }
 
 // Try to send 'value' to the target env 'envid'.
@@ -294,6 +360,21 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		sys_yield();
 		return 0;
 		break;
+	case SYS_exofork:
+		sysret = sys_exofork();
+		return sysret;
+	case SYS_env_set_status:
+		sysret = sys_env_set_status((envid_t)a1, (int)a2);
+		return sysret;
+	case SYS_page_alloc:
+		sysret = sys_page_alloc((envid_t)a1, (void*)a2, (int)a3);
+		return sysret;
+	case SYS_page_map:
+		sysret = sys_page_map((envid_t)a1, (void*)a2, (envid_t)a3, (void*)a4, (int)a5);
+		return sysret;
+	case SYS_page_unmap:
+		sysret = sys_page_unmap((envid_t)a1, (void*)a2);
+		return sysret;
 	case NSYSCALLS:
 		panic("unimplemented syscall: NSYSCALLS");
 		break;
