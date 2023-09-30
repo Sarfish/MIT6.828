@@ -680,7 +680,9 @@ user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 			return -E_FAULT;
 		}
 		pte_t * pte_store = NULL;
-		page_lookup(env->env_pgdir, (void*)start, &pte_store);
+		if(NULL == page_lookup(env->env_pgdir, (void*)start, &pte_store)){
+			return -E_FAULT;
+		}
 
 		// cprintf("perm = 0x%08x\nneed = 0x%08x\n", *pte_store, perm|PTE_P);
 		if((*pte_store & (perm | PTE_P)) == (perm | PTE_P)){

@@ -376,11 +376,56 @@ page_fault_handler(struct Trapframe *tf)
 	//   (the 'tf' variable points at 'curenv->env_tf').
 
 	// LAB 4: Your code here.
-
-	// Destroy the environment that caused the fault.
-	cprintf("[%08x] user fault va %08x ip %08x\n",
-		curenv->env_id, fault_va, tf->tf_eip);
-	print_trapframe(tf);
-	env_destroy(curenv);
+	//用户环境已设置好页错误处理程序
+	if(NULL != curenv->env_pgfault_upcall){
+		//建立用户异常栈帧
+		/*
+		                    <-- UXSTACKTOP
+			trap-time esp
+			trap-time eflags
+			trap-time eip
+			trap-time eax       start of struct PushRegs
+			trap-time ecx
+			trap-time edx
+			trap-time ebx
+			trap-time oesp
+			trap-time ebp
+			trap-time esi
+			trap-time edi       end of struct PushRegs
+			tf_err (error code)
+			fault_va            <-- %esp when handler is run
+		*/
+		struct UTrapframe * utf = NULL;
+		//如果用户程序在用户异常栈上运行时发生了页错误，则在用户异常栈栈顶部继续推入帧
+		if(tf->tf_esp < UXSTACKTOP && (tf->tf_esp >= UXSTACKTOP - PGSIZE))
+		{
+			utf = (struct UTrapframe *) (tf->tf_esp - sizeof(struct UTrapframe) - 4);
+			user_mem_assert(curenv, (void *) utf, sizeof(struct UTrapframe) + 4, PTE_P | PTE_W);
+		}
+		else
+		{
+			utf = (struct UTrapframe *)(UXSTACKTOP - sizeof(struct UTrapframe));
+			user_mem_assert(curenv, (void *) utf, sizeof(struct UTrapframe), PTE_P | PTE_W);
+		}
+		
+		utf->utf_esp      = tf->tf_esp;
+		utf->utf_eflags   = tf->tf_eflags;
+		utf->utf_eip      = tf->tf_eip;
+		utf->utf_fault_va = fault_va;
+		utf->utf_err      = tf->tf_trapno;
+		utf->utf_regs     = tf->tf_regs;
+		
+		curenv->env_tf.tf_eip = (uint32_t) curenv->env_pgfault_upcall;
+		curenv->env_tf.tf_esp = (uint32_t) utf;
+		env_run(curenv);
+	}
+	else{
+		cprintf("Oops! user-pagefault-function not given!\n");
+		// Destroy the environment that caused the fault.
+		cprintf("[%08x] user fault va %08x ip %08x\n",
+			curenv->env_id, fault_va, tf->tf_eip);
+		print_trapframe(tf);
+		env_destroy(curenv);
+	}
 }
 

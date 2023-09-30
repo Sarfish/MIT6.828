@@ -66,17 +66,33 @@ _pgfault_upcall:
 	//
 	// LAB 4: Your code here.
 
+	#构造目标栈顶数据以进行ret操作
+	#读取目标栈顶位置到eax
+	movl 0x30(%esp), %eax
+	subl $4, %eax    #在栈顶弹入一个字，这里当目标栈时用户正常栈时，该字之前是无用的数据
+					 #如果是用户异常栈, 那么就是之前留出的一个空白字
+	#读取目的eip
+	movl 0x28(%esp), %ebx
+	#将目的eip储存到目的栈顶部
+	movl %ebx, (%eax)
+
 	// Restore the trap-time registers.  After you do this, you
 	// can no longer modify any general-purpose registers.
 	// LAB 4: Your code here.
+	addl $8, %esp #弹出fault_va 和 tf_err
+	popal
 
 	// Restore eflags from the stack.  After you do this, you can
 	// no longer use arithmetic operations or anything else that
 	// modifies eflags.
 	// LAB 4: Your code here.
+	addl $4, %esp
+	popfl
 
 	// Switch back to the adjusted trap-time stack.
 	// LAB 4: Your code here.
-
+	popl %esp #执行后，当前栈就切换到目的栈了
 	// Return to re-execute the instruction that faulted.
 	// LAB 4: Your code here.
+	subl $4, %esp    #使得栈顶指向我们之前构造的eip
+	ret 
